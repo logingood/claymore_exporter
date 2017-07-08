@@ -6,7 +6,6 @@ import (
 	"net"
 	"os"
 	"net/http"
-	_ "net/http/pprof"
 	"strings"
 	"strconv"
 	"flag"
@@ -24,15 +23,15 @@ type ClaymoreStats struct {
 }
 
 type expConf struct {
-	Dial_Addr string `json:"dialaddr"`
-	Port string `json:"port"`
-	Proto string `json:"proto"`
-	Method string `json:"method"`
+	Dial_Addr []string 
+	Port string 
+	Proto string 
+	Method string 
 }
 
 func fillDefaults() *expConf {
    confDefault := &expConf{
-		 Dial_Addr: "",
+		 Dial_Addr: []string{"127.0.0.1"},
 		 Port: "3333",
 		 Proto: "tcp",
 		 Method: "miner_getstat1",
@@ -46,9 +45,11 @@ func readConf() *expConf {
 
 	dial_addr := os.Getenv("CLAYMORE_DIAL_ADDR")
 	if len(dial_addr) == 0 {
-		panic("DIAL_ADDR env must be set, e.g.: export CLAYMORE_DIAL_ADDR=192.168.1.1")
+		panic("DIAL_ADDR env must be set, e.g.: export CLAYMORE_DIAL_ADDR=192.168.1.1;192.168.1.2;..")
 	}
-	conf.Dial_Addr = dial_addr 
+
+	dial_addr_slice := strings.Split(dial_addr, ";")
+	conf.Dial_Addr = dial_addr_slice
 
 	port := os.Getenv("CLAYMORE_PORT")
 	if len(port) != 0 {
@@ -68,10 +69,9 @@ func readConf() *expConf {
 	return conf
 }
 
-func callClaymore() (reply *json.RawMessage) {
+func callClaymore(addr string, conf *expConf) (reply *json.RawMessage) {
 
-	conf := readConf()
-	client, err := net.Dial(conf.Proto, fmt.Sprintf("%s:%s", conf.Dial_Addr, conf.Port))
+	client, err := net.Dial(conf.Proto, fmt.Sprintf("%s:%s", addr, conf.Port))
 
 	if err != nil {
 		log.Fatal("Dialing:", err)
@@ -125,7 +125,7 @@ var (
 
 	ethfoundDesc = prometheus.NewDesc(
 		"eth_found",
-		"Count",
+		"Share count",
 		[]string{"eth_found", "Rig", "GPU"},
 		nil)
 
@@ -152,37 +152,41 @@ func (c *ClaymoreStatsCollector) Describe(ch chan<- *prometheus.Desc) {
 
 func (c *ClaymoreStatsCollector) Collect(ch chan<- prometheus.Metric) {
 
-		reply := callClaymore()
-		stats := parseReply(reply)
+		conf := readConf()
+		for _, addr := range conf.Dial_Addr {
 
-		uptime, _ := strconv.ParseFloat(stats.Uptime,32)
-			
-		ch <- prometheus.MustNewConstMetric(uptimeDesc,
-		  prometheus.GaugeValue,
-			uptime,
-			"Uptime", "rig01", "GPU_ALL")
+			reply := callClaymore(addr, conf)
+			stats := parseReply(reply)
 
-		ethfound, _ := strconv.ParseFloat(stats.EthFound,32)
-		ch <- prometheus.MustNewConstMetric(uptimeDesc,
-		  prometheus.GaugeValue,
-			ethfound,	
-			"Ethfound", "rig01", "GPU_ALL")
-
-	  totalrate, _ := strconv.ParseFloat(stats.TotalRate,32)
-		ch <- prometheus.MustNewConstMetric(uptimeDesc,
-		  prometheus.GaugeValue,
-			totalrate,
-			"TotalRate", "rig01", "GPU_ALL")
-
-		var hashrate float64
-
-		for i, val := range stats.HashRate {
-		  hashrate, _ = strconv.ParseFloat(val, 32)
+			uptime, _ := strconv.ParseFloat(stats.Uptime,32)
+				
 			ch <- prometheus.MustNewConstMetric(uptimeDesc,
-			  prometheus.GaugeValue,
-				hashrate,
-				fmt.Sprintf("hash%d",i), "rig01",fmt.Sprintf("GPU%d",i))
-	  }
+				prometheus.GaugeValue,
+				uptime,
+				"Uptime", addr, "GPU_ALL")
+
+			ethfound, _ := strconv.ParseFloat(stats.EthFound,32)
+			ch <- prometheus.MustNewConstMetric(ethfoundDesc,
+				prometheus.GaugeValue,
+				ethfound,	
+				"Ethfound", addr, "GPU_ALL")
+
+			totalrate, _ := strconv.ParseFloat(stats.TotalRate,32)
+			ch <- prometheus.MustNewConstMetric(totalrateDesc,
+				prometheus.GaugeValue,
+				totalrate,
+				"TotalRate", addr, "GPU_ALL")
+
+			var hashrate float64
+
+			for i, val := range stats.HashRate {
+				hashrate, _ = strconv.ParseFloat(val, 32)
+				ch <- prometheus.MustNewConstMetric(hashrateDesc,
+					prometheus.GaugeValue,
+					hashrate,
+					fmt.Sprintf("hash%d",i), addr,fmt.Sprintf("GPU%d",i))
+			}
+		}
 		
 
 }
@@ -194,6 +198,7 @@ func main() {
 	  listenAddress  = flag.String("listen-address", ":10333", "Address on which to expose metrics and web interface.")
 		metricsPath    = flag.String("telemetry-path", "/metrics", "Path under which to expose metrics.")
 	)
+
 
   claymore_collector := NewClaymoreStatsCollector()
 
