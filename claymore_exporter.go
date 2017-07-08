@@ -119,25 +119,25 @@ var (
 	uptimeDesc = prometheus.NewDesc(
 		"miner_total_uptime",
 		"Minutes",
-		[]string{"uptime", "Rig", "GPU"},
+		[]string{"Rig"},
 		nil)
 
 	ethfoundDesc = prometheus.NewDesc(
 		"eth_found",
 		"Share count",
-		[]string{"eth_found", "Rig", "GPU"},
+		[]string{"Rig"},
 		nil)
 
 	totalrateDesc = prometheus.NewDesc(
 		"total_hash_rate",
 		"mh/s",
-		[]string{"total_hash_rate", "Rig", "GPU"},
+		[]string{"Rig"},
 		nil)
 
 	hashrateDesc = prometheus.NewDesc(
 		"gpu_hash_rate",
 		"kh/s",
-		[]string{"gpu_hash_rate", "Rig", "GPU"},
+		[]string{"Rig", "GPU"},
 		nil)
 )
 
@@ -161,19 +161,19 @@ func (c *ClaymoreStatsCollector) Collect(ch chan<- prometheus.Metric) {
 		ch <- prometheus.MustNewConstMetric(uptimeDesc,
 			prometheus.GaugeValue,
 			uptime,
-			"Uptime", addr, "GPU_ALL")
+			addr)
 
 		ethfound, _ := strconv.ParseFloat(stats.EthFound, 32)
 		ch <- prometheus.MustNewConstMetric(ethfoundDesc,
 			prometheus.GaugeValue,
 			ethfound,
-			"Ethfound", addr, "GPU_ALL")
+			addr)
 
 		totalrate, _ := strconv.ParseFloat(stats.TotalRate, 32)
 		ch <- prometheus.MustNewConstMetric(totalrateDesc,
 			prometheus.GaugeValue,
 			totalrate,
-			"TotalRate", addr, "GPU_ALL")
+			addr)
 
 		var hashrate float64
 
@@ -182,7 +182,7 @@ func (c *ClaymoreStatsCollector) Collect(ch chan<- prometheus.Metric) {
 			ch <- prometheus.MustNewConstMetric(hashrateDesc,
 				prometheus.GaugeValue,
 				hashrate,
-				fmt.Sprintf("hash%d", i), addr, fmt.Sprintf("GPU%d", i))
+				addr, fmt.Sprintf("GPU%d", i))
 		}
 	}
 
