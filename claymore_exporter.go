@@ -1,47 +1,46 @@
 package main
 
 import (
+	"encoding/json"
+	"flag"
 	"fmt"
 	"log"
 	"net"
-	"os"
 	"net/http"
-	"strings"
-	"strconv"
-	"flag"
-	"encoding/json"
 	"net/rpc/jsonrpc"
+	"os"
+	"strconv"
+	"strings"
 
 	"github.com/prometheus/client_golang/prometheus"
 )
 
 type ClaymoreStats struct {
-	Uptime string `json:"uptime"`
+	Uptime    string `json:"uptime"`
 	TotalRate string `json:"totalrate"`
-	EthFound string `json:"ethfound"`
-	HashRate []string 
+	EthFound  string `json:"ethfound"`
+	HashRate  []string
 }
 
 type expConf struct {
-	Dial_Addr []string 
-	Port string 
-	Proto string 
-	Method string 
+	Dial_Addr []string
+	Port      string
+	Proto     string
+	Method    string
 }
 
 func fillDefaults() *expConf {
-   confDefault := &expConf{
-		 Dial_Addr: []string{"127.0.0.1"},
-		 Port: "3333",
-		 Proto: "tcp",
-		 Method: "miner_getstat1",
- 	 }
-   return confDefault
+	confDefault := &expConf{
+		Dial_Addr: []string{"127.0.0.1"},
+		Port:      "3333",
+		Proto:     "tcp",
+		Method:    "miner_getstat1",
+	}
+	return confDefault
 }
 
 func readConf() *expConf {
 	conf := fillDefaults()
-
 
 	dial_addr := os.Getenv("CLAYMORE_DIAL_ADDR")
 	if len(dial_addr) == 0 {
@@ -100,11 +99,11 @@ func parseReply(reply *json.RawMessage) *ClaymoreStats {
 	line1 := strings.Split(result[2], ";")
 	line2 := strings.Split(result[3], ";")
 
-	stats := &ClaymoreStats {
-		Uptime: line1[1],
+	stats := &ClaymoreStats{
+		Uptime:    line1[1],
 		TotalRate: line1[0],
-		EthFound: result[1],
-		HashRate: line2,
+		EthFound:  result[1],
+		HashRate:  line2,
 	}
 
 	return stats
@@ -142,7 +141,6 @@ var (
 		nil)
 )
 
-
 func (c *ClaymoreStatsCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- uptimeDesc
 	ch <- totalrateDesc
@@ -152,63 +150,60 @@ func (c *ClaymoreStatsCollector) Describe(ch chan<- *prometheus.Desc) {
 
 func (c *ClaymoreStatsCollector) Collect(ch chan<- prometheus.Metric) {
 
-		conf := readConf()
-		for _, addr := range conf.Dial_Addr {
+	conf := readConf()
+	for _, addr := range conf.Dial_Addr {
 
-			reply := callClaymore(addr, conf)
-			stats := parseReply(reply)
+		reply := callClaymore(addr, conf)
+		stats := parseReply(reply)
 
-			uptime, _ := strconv.ParseFloat(stats.Uptime,32)
-				
-			ch <- prometheus.MustNewConstMetric(uptimeDesc,
+		uptime, _ := strconv.ParseFloat(stats.Uptime, 32)
+
+		ch <- prometheus.MustNewConstMetric(uptimeDesc,
+			prometheus.GaugeValue,
+			uptime,
+			"Uptime", addr, "GPU_ALL")
+
+		ethfound, _ := strconv.ParseFloat(stats.EthFound, 32)
+		ch <- prometheus.MustNewConstMetric(ethfoundDesc,
+			prometheus.GaugeValue,
+			ethfound,
+			"Ethfound", addr, "GPU_ALL")
+
+		totalrate, _ := strconv.ParseFloat(stats.TotalRate, 32)
+		ch <- prometheus.MustNewConstMetric(totalrateDesc,
+			prometheus.GaugeValue,
+			totalrate,
+			"TotalRate", addr, "GPU_ALL")
+
+		var hashrate float64
+
+		for i, val := range stats.HashRate {
+			hashrate, _ = strconv.ParseFloat(val, 32)
+			ch <- prometheus.MustNewConstMetric(hashrateDesc,
 				prometheus.GaugeValue,
-				uptime,
-				"Uptime", addr, "GPU_ALL")
-
-			ethfound, _ := strconv.ParseFloat(stats.EthFound,32)
-			ch <- prometheus.MustNewConstMetric(ethfoundDesc,
-				prometheus.GaugeValue,
-				ethfound,	
-				"Ethfound", addr, "GPU_ALL")
-
-			totalrate, _ := strconv.ParseFloat(stats.TotalRate,32)
-			ch <- prometheus.MustNewConstMetric(totalrateDesc,
-				prometheus.GaugeValue,
-				totalrate,
-				"TotalRate", addr, "GPU_ALL")
-
-			var hashrate float64
-
-			for i, val := range stats.HashRate {
-				hashrate, _ = strconv.ParseFloat(val, 32)
-				ch <- prometheus.MustNewConstMetric(hashrateDesc,
-					prometheus.GaugeValue,
-					hashrate,
-					fmt.Sprintf("hash%d",i), addr,fmt.Sprintf("GPU%d",i))
-			}
+				hashrate,
+				fmt.Sprintf("hash%d", i), addr, fmt.Sprintf("GPU%d", i))
 		}
-		
+	}
 
 }
-
 
 func main() {
 
 	var (
-	  listenAddress  = flag.String("listen-address", ":10333", "Address on which to expose metrics and web interface.")
-		metricsPath    = flag.String("telemetry-path", "/metrics", "Path under which to expose metrics.")
+		listenAddress = flag.String("listen-address", ":10333", "Address on which to expose metrics and web interface.")
+		metricsPath   = flag.String("telemetry-path", "/metrics", "Path under which to expose metrics.")
 	)
 
+	claymore_collector := NewClaymoreStatsCollector()
 
-  claymore_collector := NewClaymoreStatsCollector()
-
-  prometheus.MustRegister(claymore_collector)
+	prometheus.MustRegister(claymore_collector)
 
 	http.Handle(*metricsPath, prometheus.Handler())
 
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(`<html>
-			<head><title>Sensor Exporter</title></head>
+			<head><title>Claymore Stats Exporter</title></head>
 			<body>
 			<h1>Claymore Stasts Exporter</h1>
 			<p><a href="` + *metricsPath + `">Metrics</a></p>
@@ -216,6 +211,5 @@ func main() {
 			</html>`))
 	})
 	http.ListenAndServe(*listenAddress, nil)
-
 
 }

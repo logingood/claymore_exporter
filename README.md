@@ -20,12 +20,16 @@ or using Docker container:
 
 ```
 git clone http://github.com/murat1985/claymore_exporeter.git
+```
 
+Build local image:
+```
 docker build . -t claymore_exporeter:local
+```
 
-docker run -d -t -i -e CLAYMORE_DIAL_ADDR='192.168.1.1;192.168.1.2;192.168.1.3' \ 
--p 10333:10333 \
---name claymore_exporter claymore_exporter:local
+Run it:
+```
+docker run -d -t -i -e CLAYMORE_DIAL_ADDR='192.168.1.1;192.168.1.2;192.168.1.3' -p 10333:10333 --name claymore_exporter claymore_exporter:local
 ```
 
 # TODO
