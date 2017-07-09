@@ -3,7 +3,7 @@ FROM golang:1.8
 MAINTAINER Murat Mukhtarov <muhtarov.mr@gmail.com>
 
 LABEL version="1.0"
-LABEL description="Claymore miner prometheus exporeter"
+LABEL description="Claymore miner prometheus exporter"
 
 ADD . /go/src/github.com/murat1985/claymore_exporter
 

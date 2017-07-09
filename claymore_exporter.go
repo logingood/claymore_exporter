@@ -191,8 +191,8 @@ func (c *ClaymoreStatsCollector) Collect(ch chan<- prometheus.Metric) {
 func main() {
 
 	var (
-		listenAddress = flag.String("listen-address", ":10333", "Address on which to expose metrics and web interface.")
-		metricsPath   = flag.String("telemetry-path", "/metrics", "Path under which to expose metrics.")
+		listenAddress = flag.String("web.listen-address", ":10333", "Address on which to expose metrics and web interface.")
+		metricsPath   = flag.String("web.telemetry-path", "/metrics", "Path under which to expose metrics.")
 	)
 
 	claymore_collector := NewClaymoreStatsCollector()
