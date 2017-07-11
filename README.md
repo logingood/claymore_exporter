@@ -9,6 +9,7 @@ Stats being collected:
 * Claymore Uptime in minutes
 * Per GPU Hashrate kh/s
 * [Ethereum](https://www.ethereum.org/) shares found
+* Rejected shares
 
 # Installation
 

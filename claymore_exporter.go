@@ -74,18 +74,22 @@ func callClaymore(addr string, conf *expConf) (reply *json.RawMessage) {
 	client, err := net.Dial(conf.Proto, fmt.Sprintf("%s:%s", addr, conf.Port))
 
 	if err != nil {
-		log.Fatal("Dialing:", err)
+		log.Print("Dialing:", err)
+		fake_reply := json.RawMessage(`["Fake Version", "0","0;0;0","0", "0;0;0", 
+		"off;off;off;off", "0;0", "fake.miner", "0;0;0;0"]`)
+		return &fake_reply
+	} else {
+
+		// Synchronous call
+		c := jsonrpc.NewClient(client)
+		err = c.Call(conf.Method, "", &reply)
+
+		if err != nil {
+			log.Fatal("Can't parse response:", err)
+		}
+
+		return reply
 	}
-
-	// Synchronous call
-	c := jsonrpc.NewClient(client)
-	err = c.Call(conf.Method, "", &reply)
-
-	if err != nil {
-		log.Fatal("Can't parse response:", err)
-	}
-
-	return reply
 }
 
 func parseReply(reply *json.RawMessage) *ClaymoreStats {
