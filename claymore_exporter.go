@@ -19,6 +19,7 @@ type ClaymoreStats struct {
 	Uptime    string `json:"uptime"`
 	TotalRate string `json:"totalrate"`
 	EthFound  string `json:"ethfound"`
+	EthReject string `json:"ethreject"`
 	HashRate  []string
 }
 
