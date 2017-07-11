@@ -96,14 +96,19 @@ func parseReply(reply *json.RawMessage) *ClaymoreStats {
 	var result []string
 	err = json.Unmarshal(j, &result)
 
-	line1 := strings.Split(result[2], ";")
-	line2 := strings.Split(result[3], ";")
+	totals := strings.Split(result[2], ";")
+	hashrate := strings.Split(result[3], ";")
+
+	// result[1] contains uptime of the miner
+	// result[2] contains totals TotalHashRate;SharesFound;SharesRejected
+	// result[3] contais  per-GPU hashrate
 
 	stats := &ClaymoreStats{
-		Uptime:    line1[1],
-		TotalRate: line1[0],
-		EthFound:  result[1],
-		HashRate:  line2,
+		Uptime:    result[1],
+		TotalRate: totals[0],
+		EthFound:  totals[1],
+		EthReject: totals[2],
+		HashRate:  hashrate,
 	}
 
 	return stats
@@ -128,6 +133,12 @@ var (
 		[]string{"Rig"},
 		nil)
 
+	ethrejectDesc = prometheus.NewDesc(
+		"eth_reject",
+		"Rejected shares count",
+		[]string{"Rig"},
+		nil)
+
 	totalrateDesc = prometheus.NewDesc(
 		"total_hash_rate",
 		"mh/s",
@@ -145,6 +156,7 @@ func (c *ClaymoreStatsCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- uptimeDesc
 	ch <- totalrateDesc
 	ch <- ethfoundDesc
+	ch <- ethrejectDesc
 	ch <- hashrateDesc
 }
 
@@ -167,6 +179,12 @@ func (c *ClaymoreStatsCollector) Collect(ch chan<- prometheus.Metric) {
 		ch <- prometheus.MustNewConstMetric(ethfoundDesc,
 			prometheus.GaugeValue,
 			ethfound,
+			addr)
+
+		ethreject, _ := strconv.ParseFloat(stats.EthReject, 32)
+		ch <- prometheus.MustNewConstMetric(ethrejectDesc,
+			prometheus.GaugeValue,
+			ethreject,
 			addr)
 
 		totalrate, _ := strconv.ParseFloat(stats.TotalRate, 32)
