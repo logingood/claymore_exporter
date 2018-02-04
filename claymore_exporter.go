@@ -21,7 +21,6 @@ type ClaymoreStats struct {
 	EthFound  string    `json:"ethfound"`
 	EthReject string    `json:"ethreject"`
 	GPUs      []GPUInfo `json:"gpuinfo`
-	HashRate  []string
 }
 
 type GPUInfo struct {
@@ -139,7 +138,6 @@ func parseReply(reply *json.RawMessage) *ClaymoreStats {
 		TotalRate: totals[0],
 		EthFound:  totals[1],
 		EthReject: totals[2],
-		HashRate:  hashrate,
 		GPUs:      GPUs,
 	}
 
@@ -237,12 +235,12 @@ func (c *ClaymoreStatsCollector) Collect(ch chan<- prometheus.Metric) {
 			totalrate,
 			addr)
 
-		for i, val := range stats.HashRate {
-			hashrate, _ := strconv.ParseFloat(val, 32)
+		for _, val := range stats.GPUs {
+			hashrate, _ := strconv.ParseFloat(val.HashRate, 32)
 			ch <- prometheus.MustNewConstMetric(hashrateDesc,
 				prometheus.GaugeValue,
 				hashrate,
-				addr, fmt.Sprintf("GPU%d", i))
+				addr, val.Name)
 		}
 
 		for _, val := range stats.GPUs {
