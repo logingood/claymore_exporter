@@ -16,11 +16,18 @@ import (
 )
 
 type ClaymoreStats struct {
-	Uptime    string `json:"uptime"`
-	TotalRate string `json:"totalrate"`
-	EthFound  string `json:"ethfound"`
-	EthReject string `json:"ethreject"`
-	HashRate  []string
+	Uptime    string    `json:"uptime"`
+	TotalRate string    `json:"totalrate"`
+	EthFound  string    `json:"ethfound"`
+	EthReject string    `json:"ethreject"`
+	GPUs      []GPUInfo `json:"gpuinfo`
+}
+
+type GPUInfo struct {
+	Name     string
+	HashRate string
+	Temp     string
+	FanSpeed string
 }
 
 type expConf struct {
@@ -93,16 +100,34 @@ func callClaymore(addr string, conf *expConf) (reply *json.RawMessage) {
 }
 
 func parseReply(reply *json.RawMessage) *ClaymoreStats {
+	var temps []string
+	var fans []string
+	var result []string
 
 	j, err := json.Marshal(&reply)
 	if err != nil {
 		panic(err)
 	}
-	var result []string
 	err = json.Unmarshal(j, &result)
 
 	totals := strings.Split(result[2], ";")
 	hashrate := strings.Split(result[3], ";")
+
+	for i, v := range strings.Split(result[6], ";") {
+		if i%2 == 0 {
+			temps = append(temps, v)
+		} else {
+			fans = append(fans, v)
+		}
+	}
+
+	GPUs := make([]GPUInfo, len(hashrate))
+	for i := range GPUs {
+		GPUs[i].FanSpeed = fans[i]
+		GPUs[i].Temp = temps[i]
+		GPUs[i].HashRate = hashrate[i]
+		GPUs[i].Name = fmt.Sprintf("GPU%v", i)
+	}
 
 	// result[1] contains uptime of the miner
 	// result[2] contains totals TotalHashRate;SharesFound;SharesRejected
@@ -113,7 +138,7 @@ func parseReply(reply *json.RawMessage) *ClaymoreStats {
 		TotalRate: totals[0],
 		EthFound:  totals[1],
 		EthReject: totals[2],
-		HashRate:  hashrate,
+		GPUs:      GPUs,
 	}
 
 	return stats
@@ -153,6 +178,18 @@ var (
 	hashrateDesc = prometheus.NewDesc(
 		"gpu_hash_rate",
 		"kh/s",
+		[]string{"Rig", "GPU"},
+		nil)
+
+	tempDesc = prometheus.NewDesc(
+		"gpu_temp_celsius",
+		"c",
+		[]string{"Rig", "GPU"},
+		nil)
+
+	fanspeedDesc = prometheus.NewDesc(
+		"gpu_fanspeed_percentage",
+		"%",
 		[]string{"Rig", "GPU"},
 		nil)
 )
@@ -198,14 +235,28 @@ func (c *ClaymoreStatsCollector) Collect(ch chan<- prometheus.Metric) {
 			totalrate,
 			addr)
 
-		var hashrate float64
-
-		for i, val := range stats.HashRate {
-			hashrate, _ = strconv.ParseFloat(val, 32)
+		for _, val := range stats.GPUs {
+			hashrate, _ := strconv.ParseFloat(val.HashRate, 32)
 			ch <- prometheus.MustNewConstMetric(hashrateDesc,
 				prometheus.GaugeValue,
 				hashrate,
-				addr, fmt.Sprintf("GPU%d", i))
+				addr, val.Name)
+		}
+
+		for _, val := range stats.GPUs {
+			temp, _ := strconv.ParseFloat(val.Temp, 32)
+			ch <- prometheus.MustNewConstMetric(tempDesc,
+				prometheus.GaugeValue,
+				temp,
+				addr, val.Name)
+		}
+
+		for _, val := range stats.GPUs {
+			fanSpeed, _ := strconv.ParseFloat(val.FanSpeed, 32)
+			ch <- prometheus.MustNewConstMetric(fanspeedDesc,
+				prometheus.GaugeValue,
+				fanSpeed,
+				addr, val.Name)
 		}
 	}
 
